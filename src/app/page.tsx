@@ -45,7 +45,8 @@ export default function Home() {
            type: "Email",
        });
     
-       const { send } = await request.createAccountStore(api, { member });
+    const { send } = await request.createAccountStore(api, { member });
+    console.log(verificationCode, email);
        const result = await send({ authentication: { type: "Email", verificationCode } });
        console.log(result);
     
@@ -64,7 +65,7 @@ export default function Home() {
             addressOrHandle: email,
             type: "Email",
         });
-        const { send } = await request.createAccountStore(api, { member });
+        const { send } = await request.requestAuthToken(api, { member });
         const result = await send({ authentication: { type: "Email", verificationCode } });
         console.log(result);
     };
