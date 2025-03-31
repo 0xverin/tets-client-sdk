@@ -18,6 +18,8 @@ export default function Home() {
     const [email, setEmail] = useState("");
     const [verificationCode, setVerificationCode] = useState("");
 
+  
+  // step1
     const requestEmailVerificationCode = async () => {
         await cryptoWaitReady();
         const api = new ApiPromise({
@@ -30,7 +32,7 @@ export default function Home() {
         console.log(result);
     };
   
-  
+  // step2
   const createAccountStore = async () => {
        await cryptoWaitReady();
        const api = new ApiPromise({
@@ -38,7 +40,6 @@ export default function Home() {
            types,
        });
     await api.isReady;
-    await request.requestEmailVerificationCode({ email });
        const member = createIdentityType(api.registry, {
            addressOrHandle: email,
            type: "Email",
@@ -50,7 +51,7 @@ export default function Home() {
     
   };
   
-
+  // step3
     const requestAuthToken = async () => {
         await cryptoWaitReady();
         const api = new ApiPromise({
@@ -59,8 +60,6 @@ export default function Home() {
         });
       await api.isReady;
       
-    await request.requestEmailVerificationCode({ email });
-
         const member = createIdentityType(api.registry, {
             addressOrHandle: email,
             type: "Email",
