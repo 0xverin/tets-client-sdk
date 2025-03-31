@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ApiPromise, WsProvider } from "@polkadot/api";
 import { cryptoWaitReady } from "@polkadot/util-crypto";
 import { getChain } from "@heima-network/chaindata";
-import { createIdentityType, request } from "@heima-network/client-sdk";
+import { createIdentityType, request, getAndWaitForAccountStoreCreation, toHash } from "@heima-network/client-sdk";
 import { TypeRegistry } from "@polkadot/types";
 import { identity, omniAccount, omniExecutor, sidechain } from "@heima-network/parachain-api";
 
@@ -69,18 +69,44 @@ export default function Home() {
         const result = await send({ authentication: { type: "Email", verificationCode } });
         console.log(result);
     };
+  
+  
+  const checkAccountStore = async () => {
+    await cryptoWaitReady();
+    const api = new ApiPromise({
+        provider: new WsProvider(getChain("heima-dev").rpcs[0].url),
+        types,
+    });
+     const member = createIdentityType(api.registry, {
+         addressOrHandle: email,
+         type: "Email",
+     });
+    const omniAccount = toHash(member);
 
-    return (
-        <div>
-            <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-            />
-        <button onClick={requestEmailVerificationCode}>Request Verification Code</button>
-        <button onClick={createAccountStore}>Create Account Store</button>
+    const accountStore = await getAndWaitForAccountStoreCreation(api, omniAccount);
+    if (!accountStore) {
+        throw new Error("Account store not found");
+    }
+    console.log(accountStore.toString());
 
+  };
+  
+
+return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+        <div style={{ textAlign: "center" }}>
+            <div>
+                <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                />
+                <button onClick={requestEmailVerificationCode}>Request Verification Code</button>
+            </div>
+            <div>
+                <button onClick={createAccountStore}>Create Account Store</button>
+            </div>
             <input
                 type="text"
                 value={verificationCode}
@@ -88,6 +114,10 @@ export default function Home() {
                 placeholder="Enter your verification code"
             />
             <button onClick={requestAuthToken}>Request Auth Token</button>
+            <div>
+                <button onClick={checkAccountStore}>Check Account Store</button>
+            </div>
         </div>
-    );
+    </div>
+);
 }
