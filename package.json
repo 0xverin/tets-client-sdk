@@ -15,11 +15,12 @@
         "@polkadot/util-crypto": "^13.4.3",
         "next": "15.2.4",
         "react": "^19.0.0",
-        "react-dom": "^19.0.0"
+        "react-dom": "^19.0.0",
+        "@heima-network/chaindata": "0.0.4"
     },
     "devDependencies": {
         "@heima-network/chaindata": "0.0.3",
-        "@heima-network/client-sdk": "1.0.0-next.888",
+        "@heima-network/client-sdk": "1.0.0-next.881",
         "@types/node": "^20",
         "@types/react": "^19",
         "@types/react-dom": "^19",
