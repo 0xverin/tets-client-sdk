@@ -123,7 +123,7 @@ export default function Home() {
             method: "pumpx_exportWallet",
             params: {
                 user_email: email,
-                key: u8aToHex(encryptedKey.ciphertext),
+                key: u8aToHex(encryptedKey.ciphertext).replace("0x", ""),
                 google_code: "",
                 chain_id: 1,
                 wallet_index: 1,
@@ -143,6 +143,13 @@ export default function Home() {
             method: "omni_getShieldingKey",
             params: [],
         });
+
+        // ```
+        // {
+        //     "e": "010001",
+        //     "n": "0bcd156a8bcbb8895c4e1bd8891e60d178bd0833304276071889c8ceb10499fba5666a9dd40682d883d27bf6ee0f09979e5b2eac52ac803fcaef50f91425ca27347c1ed5a46821c340309e9f00751a2466fa5995cba3d817b237301cbbe95c9f97d2bade6ea0e7d44930fc737de1fc499673e781968f39c79294a97df9f0eed7a6ef05de44d34515d89da6b65b68f5429885b7198e3f715bc797cc45fc125bef530331c6f757d0220fa308c9b5d13b79e0fcd650a4aec8949e3d3e1517363adf73d8a3da17ef0c47982787f56aff1d91084eaae63d4e2c3cd0c51a6f73c842176eb4857e65457def0b958626ff17e24636d31d34beeeb89e38dfbc9e5ff10f7819075a11f860b933d56ebee7949c870fe5b9307ef94b9d9b343b082d16c63b8223276f948cac05f68110b2f57ed34a5897ad1a48fd34715939b3a4ff187ee887ff7e16ba11e901e39a0628d3c41ecc076d2ff30a001a9fcd885be6142d027ba2ec4463acf9a12b5f3209044a97d0e9b71e5c1346feb143ab270c6077a4b99dac"
+        // }
+        // ```
         const pubKeyJSON = res;
 
         const jwkData = {
