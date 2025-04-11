@@ -14,7 +14,28 @@ import crypto from "crypto";
 import { KeyObject } from "crypto";
 import type { Bytes } from "@polkadot/types-codec";
 import { createPublicKey } from "crypto";
+import type { Registry } from "@polkadot/types-codec/types";
+import type { AesOutput } from "@heima-network/parachain-api";
+import type { HexString } from "@polkadot/util/types";
 
+   const ciphertextRes = {
+       ciphertext: "0x377c6669c603c42f077bbbfa76f013d307c63c0d9fccaf13cce154d8f5257bf9aa099be19d36c58f882d6798579d278c",
+       aad: "0x",
+       nonce: "0xd471040f810e5d382bfc8ce9",
+   };
+   const randomAes = "0x9635e81da12daec72a72ecd9bf452458c686a0240024389c033afb7a12c5528b";
+   const aesKeyGenParams: AesKeyGenParams = {
+       name: "AES-GCM",
+       length: 256,
+   };
+const aesKeyUsages: KeyUsage[] = ["encrypt", "decrypt"];
+
+
+async function generateKey(): Promise<CryptoKey> {
+    const key = await globalThis.crypto.subtle.generateKey(aesKeyGenParams, true, aesKeyUsages);
+
+    return key;
+}
  function u8aToBase64Url(value: U8aLike): string {
      return (
          // Remove padding (`=`) from base64
@@ -24,6 +45,29 @@ import { createPublicKey } from "crypto";
              // Replace `/` with `_`
              .replace(/\//g, "_")
      );
+ }
+
+ async function decrypt(
+     args: { ciphertext: Uint8Array; nonce: Uint8Array },
+     shieldingKey: CryptoKey,
+ ): Promise<{ cleartext: Uint8Array }> {
+     try {
+         const decrypted = await globalThis.crypto.subtle.decrypt(
+             {
+                 name: aesKeyGenParams.name,
+                 iv: args.nonce,
+             },
+             shieldingKey,
+             args.ciphertext,
+         );
+
+         return { cleartext: new Uint8Array(decrypted) };
+     } catch (error) {
+         console.error(error);
+         // It throws Throws OperationError if the ciphertext is invalid
+         // We would like to return a more human error.
+         throw new Error("Failed to decrypt data");
+     }
  }
 
  function encryptBuffer(pubKey: crypto.KeyLike, plaintext: Uint8Array): Buffer {
@@ -65,6 +109,7 @@ const types = {
 export default function Home() {
     const [email, setEmail] = useState("");
     const [verificationCode, setVerificationCode] = useState("");
+    const [googleCode, setGoogleCode] = useState("");
 
     const requestEmailVerificationCodeWithRpc=async() => {
         const wsClient = Enclave.getInstance();
@@ -113,7 +158,7 @@ export default function Home() {
   
     const exportWallet = async () => {
         const aesRandomKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
-        console.log(aesRandomKey);
+        console.log("aesRandomKey", u8aToHex(aesRandomKey));
         const wsClient = Enclave.getInstance();
         const encryptedKey = await encrypt({ cleartext: aesRandomKey });
         console.log(encryptedKey);
@@ -123,12 +168,12 @@ export default function Home() {
             method: "pumpx_exportWallet",
             params: {
                 user_email: email,
-                key: u8aToHex(encryptedKey.ciphertext).replace("0x", ""),
-                google_code: "",
+                key: u8aToHex(encryptedKey.ciphertext),
                 chain_id: 1,
-                wallet_index: 1,
-                wallet_address: "0x3Bc9c5e4D7e934f0d66D2195E4569Da13709A079",
+                wallet_index: 5,
+                wallet_address: "0xDA65A2AAB3765D7DCea61387fd2aEc9d57E9458E",
                 email_code: verificationCode,
+                google_code: googleCode,
             },
         };
 
@@ -137,6 +182,7 @@ export default function Home() {
     }
 
     const getShieldingKey = async () => {
+        
         const wsClient = Enclave.getInstance();
         const res:any = await wsClient.send({
             jsonrpc: "2.0",
@@ -172,8 +218,30 @@ export default function Home() {
         console.log("shieldingKey", shieldingKey);
         return shieldingKey;
     }
-  
 
+ function decryptWithAes(key: HexString, aesOutput: AesOutput, type: "hex" | "utf-8"): HexString {
+     const secretKey = crypto.createSecretKey(hexToU8a(key));
+     const tagSize = 16;
+     const ciphertext = aesOutput.ciphertext ? aesOutput.ciphertext : hexToU8a("0x");
+
+     const nonce = aesOutput.nonce ? aesOutput.nonce : hexToU8a("0x");
+     const aad = aesOutput.aad ? aesOutput.aad : hexToU8a("0x");
+
+     // notice!!! extract author_tag from ciphertext
+     // maybe this code only works with rust aes encryption
+     const authorTag = ciphertext.subarray(ciphertext.length - tagSize);
+
+     const decipher =crypto.createDecipheriv("aes-256-gcm", secretKey, nonce, {
+         authTagLength: tagSize,
+     });
+     decipher.setAAD(aad);
+     decipher.setAuthTag(authorTag);
+
+     const part1 = decipher.update(ciphertext.subarray(0, ciphertext.length - tagSize), undefined, type);
+     const part2 = decipher.final(type);
+
+     return `0x${part1 + part2}`;
+ }
 return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
         <div style={{ textAlign: "center" }}>
@@ -196,11 +264,28 @@ return (
                 <button onClick={requestPumpJwtWithRpc}>Request Pumpx JWT</button>
             </div>
             <div>
-                <button onClick={exportWallet}>Export Wallet</button>
+                <input
+                    type="text"
+                    value={googleCode}
+                    onChange={(e) => setGoogleCode(e.target.value)}
+                    placeholder="Enter Google code"
+                />
             </div>
             <div>
-                <button onClick={getShieldingKey}>Get Shielding Key</button>
-            </div>   
+                <button onClick={exportWallet}>Export Wallet</button>
+                <button onClick={async () => {
+                    const res = await decrypt(
+                        {
+                            ciphertext: hexToU8a(ciphertextRes.ciphertext),
+                            nonce: hexToU8a(ciphertextRes.nonce),
+                        },
+                        await getShieldingKey(),
+                    );
+                    console.log(res);
+                }}>Decrypt</button>
+
+                {/* <button onClick={getShieldingKey}>Get Shielding Key</button> */}
+            </div>
         </div>
     </div>
 );
