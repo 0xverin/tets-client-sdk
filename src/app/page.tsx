@@ -47,29 +47,6 @@ async function generateKey(): Promise<CryptoKey> {
      );
  }
 
- async function decrypt(
-     args: { ciphertext: Uint8Array; nonce: Uint8Array },
-     shieldingKey: CryptoKey,
- ): Promise<{ cleartext: Uint8Array }> {
-     try {
-         const decrypted = await globalThis.crypto.subtle.decrypt(
-             {
-                 name: aesKeyGenParams.name,
-                 iv: args.nonce,
-             },
-             shieldingKey,
-             args.ciphertext,
-         );
-
-         return { cleartext: new Uint8Array(decrypted) };
-     } catch (error) {
-         console.error(error);
-         // It throws Throws OperationError if the ciphertext is invalid
-         // We would like to return a more human error.
-         throw new Error("Failed to decrypt data");
-     }
- }
-
  function encryptBuffer(pubKey: crypto.KeyLike, plaintext: Uint8Array): Buffer {
      const bs = 384; // 3072 bits = 384 bytes
      const bsPlain = bs - (2 * 256) / 8 - 2; // Maximum plaintext block size
@@ -219,28 +196,67 @@ export default function Home() {
         return shieldingKey;
     }
 
- function decryptWithAes(key: HexString, aesOutput: AesOutput, type: "hex" | "utf-8"): HexString {
-     const secretKey = crypto.createSecretKey(hexToU8a(key));
+ async function decryptWithAes(key: HexString, aesOutput: AesOutput, type: "hex" | "utf-8"): Promise<HexString> {
+     const secretKey = await globalThis.crypto.subtle.importKey(
+         "raw",
+         hexToU8a(key),
+         { name: "AES-GCM" },
+         false,
+         ["decrypt"]
+     );
      const tagSize = 16;
-     const ciphertext = aesOutput.ciphertext ? aesOutput.ciphertext : hexToU8a("0x");
-
-     const nonce = aesOutput.nonce ? aesOutput.nonce : hexToU8a("0x");
-     const aad = aesOutput.aad ? aesOutput.aad : hexToU8a("0x");
-
-     // notice!!! extract author_tag from ciphertext
-     // maybe this code only works with rust aes encryption
-     const authorTag = ciphertext.subarray(ciphertext.length - tagSize);
-
-     const decipher =crypto.createDecipheriv("aes-256-gcm", secretKey, nonce, {
-         authTagLength: tagSize,
-     });
-     decipher.setAAD(aad);
-     decipher.setAuthTag(authorTag);
-
-     const part1 = decipher.update(ciphertext.subarray(0, ciphertext.length - tagSize), undefined, type);
-     const part2 = decipher.final(type);
-
-     return `0x${part1 + part2}`;
+     
+     // Ensure ciphertext is a Uint8Array
+     const ciphertextBytes = aesOutput.ciphertext ? 
+         (aesOutput.ciphertext instanceof Uint8Array ? 
+             aesOutput.ciphertext : 
+             hexToU8a(aesOutput.ciphertext)
+         ) : 
+         hexToU8a("0x");
+     
+     // Ensure nonce and aad are Uint8Arrays
+     const nonceBytes = aesOutput.nonce ? 
+         (aesOutput.nonce instanceof Uint8Array ? 
+             aesOutput.nonce : 
+             hexToU8a(aesOutput.nonce)
+         ) : 
+         hexToU8a("0x");
+     
+     const aadBytes = aesOutput.aad ? 
+         (aesOutput.aad instanceof Uint8Array ? 
+             aesOutput.aad : 
+             hexToU8a(aesOutput.aad)
+         ) : 
+         hexToU8a("0x");
+     
+     // Extract auth tag from ciphertext (last 16 bytes)
+     const authorTag = ciphertextBytes.subarray(ciphertextBytes.length - tagSize);
+     const actualCiphertext = ciphertextBytes.subarray(0, ciphertextBytes.length - tagSize);
+     
+     try {
+         // Decrypt the data
+         const decryptedArrayBuffer = await globalThis.crypto.subtle.decrypt(
+             {
+                 name: "AES-GCM",
+                 iv: nonceBytes,
+                 additionalData: aadBytes,
+                 tagLength: tagSize * 8,
+             }, 
+             secretKey, 
+             new Uint8Array([...actualCiphertext, ...authorTag])
+         );
+         
+         // Convert the result based on the requested type
+         const decryptedBytes = new Uint8Array(decryptedArrayBuffer);
+         if (type === "hex") {
+             return `0x${u8aToHex(decryptedBytes).substring(2)}`;
+         } else {
+             return `0x${u8aToString(decryptedBytes)}`;
+         }
+     } catch (error) {
+         console.error("Decryption error:", error);
+         throw new Error("Failed to decrypt data");
+     }
  }
 return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
@@ -274,14 +290,12 @@ return (
             <div>
                 <button onClick={exportWallet}>Export Wallet</button>
                 <button onClick={async () => {
-                    const res = await decrypt(
-                        {
-                            ciphertext: hexToU8a(ciphertextRes.ciphertext),
-                            nonce: hexToU8a(ciphertextRes.nonce),
-                        },
-                        await getShieldingKey(),
-                    );
-                    console.log(res);
+                    try {
+                        const res = await decryptWithAes(randomAes, ciphertextRes as unknown as AesOutput, "hex");
+                        console.log("Decrypted result:", res);
+                    } catch (error) {
+                        console.error("Error in decryption:", error);
+                    }
                 }}>Decrypt</button>
 
                 {/* <button onClick={getShieldingKey}>Get Shielding Key</button> */}
