@@ -2,7 +2,13 @@
 import { useState } from "react";
 import { ApiPromise, WsProvider } from "@polkadot/api";
 import { cryptoWaitReady } from "@polkadot/util-crypto";
-import { createIdentityType, request, Enclave, JsonRpcRequest, decryptWithAes } from "@heima-network/client-sdk";
+import {
+    createIdentityType,
+    request,
+    Enclave,
+    JsonRpcRequest,
+    decryptWithAes,
+} from "@heima-network/client-sdk";
 import { TypeRegistry } from "@polkadot/types";
 import { identity, omniAccount, omniExecutor, sidechain } from "@heima-network/parachain-api";
 import { type ChainId, getChain } from "@heima-network/chaindata";
@@ -36,7 +42,8 @@ export default function Home() {
     const [googleCode, setGoogleCode] = useState("");
     const [walletAddress, setWalletAddress] = useState("");
     const [walletIndex, setWalletIndex] = useState(0);
-        const aesRandomKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
+    const aesRandomKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
+    const [identity, setIdentity] = useState("");
 
     const requestEmailVerificationCodeWithRpc=async() => {
         const wsClient = Enclave.getInstance();
@@ -53,35 +60,46 @@ export default function Home() {
     }
 
 
-    const exportWallet = async () => {
-        console.log("aesRandomKey", u8aToHex(aesRandomKey));
-        const enclave = Enclave.getInstance();
-        const encryptedKey = await enclave.encrypt({ cleartext: aesRandomKey });
+    // const exportWallet = async () => {
+    //     console.log("aesRandomKey", u8aToHex(aesRandomKey));
+    //     const enclave = Enclave.getInstance();
+    //     const encryptedKey = await enclave.encrypt({ cleartext: aesRandomKey });
 
-        const rpcRequest = {
-            jsonrpc: "2.0",
-            method: "pumpx_exportWallet",
-            params: {
-                user_email: email,
-                key: u8aToHex(encryptedKey.ciphertext),
-                chain_id: 1,
-                wallet_index: walletIndex,
-                wallet_address: walletAddress,
-                email_code: verificationCode,
-                google_code: googleCode,
-            },
-        };
+    //     const rpcRequest = {
+    //         jsonrpc: "2.0",
+    //         method: "pumpx_exportWallet",
+    //         params: {
+    //             user_email: email,
+    //             key: u8aToHex(encryptedKey.ciphertext),
+    //             chain_id: 100000,
+    //             wallet_index: walletIndex,
+    //             wallet_address: walletAddress,
+    //             email_code: verificationCode,
+    //             google_code: googleCode,
+    //         },
+    //     };
 
-        const response = await enclave.send(rpcRequest as any);
-        {
-            //        ciphertext: "0xb0b6126dd7acae085cd4da94185d0707bb19257f6f95cac84c2c4b0ffc0e23995ac656c96f08abd007b32bafae5477f7",
-            //        aad: "0x",
-            //        nonce: "0xaad559c090dc5195ace3e3eb",
-            //    };
-            console.log(222222, u8aToHex(aesRandomKey));
-            const decryptedKey = await decryptWithAes(u8aToHex(aesRandomKey), response as unknown as AesOutput, "hex");
-            console.log("decryptedKey", decryptedKey);
-        }
+    //     const response = await enclave.send(rpcRequest as any);
+    //     {
+    //         //        ciphertext: "0xb0b6126dd7acae085cd4da94185d0707bb19257f6f95cac84c2c4b0ffc0e23995ac656c96f08abd007b32bafae5477f7",
+    //         //        aad: "0x",
+    //         //        nonce: "0xaad559c090dc5195ace3e3eb",
+    //         //    };
+    //         console.log(222222, u8aToHex(aesRandomKey));
+    //         const decryptedKey = await decryptWithAes(u8aToHex(aesRandomKey), response as unknown as AesOutput, "hex");
+    //         console.log("decryptedKey", decryptedKey);
+    //     }
+    // }
+
+    const createIdentity = async () => {
+        const registry = new TypeRegistry();
+        registry.register(types);
+        const res = createIdentityType(registry, {
+            addressOrHandle: email,
+            type: "Email",
+        });
+        console.log(u8aToHex(res.hash));
+        setIdentity(u8aToHex(res.hash));
     }
 return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
@@ -93,9 +111,9 @@ return (
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
                 />
-                <button onClick={requestEmailVerificationCodeWithRpc}>Request Verification Code</button>
+                {/* <button onClick={requestEmailVerificationCodeWithRpc}>Request Verification Code</button> */}
             </div>
-            <div>
+            {/* <div>
                 <input
                     type="text"
                     value={walletAddress}
@@ -110,8 +128,8 @@ return (
                     onChange={(e) => setWalletIndex(parseInt(e.target.value))}
                     placeholder="Enter wallet index"
                 />
-            </div>
-            <div>
+            </div> */}
+            {/* <div>
                 <input
                     type="text"
                     value={verificationCode}
@@ -126,10 +144,16 @@ return (
                     onChange={(e) => setGoogleCode(e.target.value)}
                     placeholder="Enter Google code"
                 />
-            </div>
-            <div>
+            </div> */}
+            {/* <div>
                 <button onClick={exportWallet}>Export Wallet</button>
 
+            </div> */}
+            <div>
+                <button onClick={createIdentity}>Create omni account</button>
+            </div>
+            <div>
+                {identity}
             </div>
         </div>
     </div>
